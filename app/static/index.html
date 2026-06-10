@@ -1,0 +1,210 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Fake News Detector</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: 'Segoe UI', sans-serif;
+            background: #0f0f0f;
+            color: #fff;
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 20px;
+        }
+        .container {
+            max-width: 800px;
+            width: 100%;
+        }
+        h1 {
+            font-size: 2rem;
+            margin-bottom: 8px;
+            color: #fff;
+        }
+        .subtitle {
+            color: #888;
+            margin-bottom: 32px;
+            font-size: 0.95rem;
+        }
+        textarea {
+            width: 100%;
+            height: 200px;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 12px;
+            padding: 16px;
+            color: #fff;
+            font-size: 0.95rem;
+            resize: vertical;
+            outline: none;
+            transition: border 0.2s;
+        }
+        textarea:focus { border-color: #555; }
+        button {
+            margin-top: 16px;
+            width: 100%;
+            padding: 14px;
+            background: #fff;
+            color: #000;
+            border: none;
+            border-radius: 12px;
+            font-size: 1rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: opacity 0.2s;
+        }
+        button:hover { opacity: 0.85; }
+        button:disabled { opacity: 0.4; cursor: not-allowed; }
+        .result {
+            margin-top: 24px;
+            background: #1a1a1a;
+            border: 1px solid #333;
+            border-radius: 12px;
+            padding: 24px;
+            display: none;
+        }
+        .verdict {
+            font-size: 2rem;
+            font-weight: 700;
+            margin-bottom: 8px;
+        }
+        .verdict.fake { color: #ff4444; }
+        .verdict.real { color: #44ff88; }
+        .confidence {
+            font-size: 0.9rem;
+            color: #888;
+            margin-bottom: 20px;
+        }
+        .bar-container {
+            background: #333;
+            border-radius: 999px;
+            height: 8px;
+            margin-bottom: 24px;
+        }
+        .bar {
+            height: 8px;
+            border-radius: 999px;
+            transition: width 0.6s ease;
+        }
+        .bar.fake { background: #ff4444; }
+        .bar.real { background: #44ff88; }
+        .models {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 12px;
+        }
+        .model-card {
+            background: #222;
+            border-radius: 8px;
+            padding: 14px;
+        }
+        .model-name {
+            font-size: 0.75rem;
+            color: #888;
+            margin-bottom: 6px;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+        .model-verdict {
+            font-size: 1rem;
+            font-weight: 600;
+        }
+        .model-verdict.fake { color: #ff4444; }
+        .model-verdict.real { color: #44ff88; }
+        .error {
+            margin-top: 16px;
+            color: #ff4444;
+            font-size: 0.9rem;
+            display: none;
+        }
+        .loading { display: none; text-align: center; margin-top: 16px; color: #888; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>🔍 Fake News Detector</h1>
+        <p class="subtitle">Powered by DistilBERT (97.4% accuracy) + TF-IDF Baseline</p>
+
+        <textarea id="newsInput" placeholder="Paste a news article or headline here..."></textarea>
+        <button id="detectBtn" onclick="detect()">Detect</button>
+
+        <p class="loading" id="loading">Analyzing...</p>
+        <p class="error" id="error"></p>
+
+        <div class="result" id="result">
+            <div class="verdict" id="verdict"></div>
+            <div class="confidence" id="confidence"></div>
+            <div class="bar-container">
+                <div class="bar" id="bar"></div>
+            </div>
+            <div class="models">
+                <div class="model-card">
+                    <div class="model-name">DistilBERT</div>
+                    <div class="model-verdict" id="bertVerdict"></div>
+                </div>
+                <div class="model-card">
+                    <div class="model-name">TF-IDF Baseline</div>
+                    <div class="model-verdict" id="baselineVerdict"></div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        async function detect() {
+            const text = document.getElementById('newsInput').value.trim();
+            if (!text) return;
+
+            const btn = document.getElementById('detectBtn');
+            const loading = document.getElementById('loading');
+            const error = document.getElementById('error');
+            const result = document.getElementById('result');
+
+            btn.disabled = true;
+            loading.style.display = 'block';
+            error.style.display = 'none';
+            result.style.display = 'none';
+
+            try {
+                const response = await fetch('/predict', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ text })
+                });
+
+                const data = await response.json();
+
+                const prediction = data.distilbert.prediction;
+                const confidence = parseFloat(data.distilbert.confidence);
+
+                document.getElementById('verdict').textContent = prediction === 'FAKE' ? '🚨 FAKE NEWS' : '✅ REAL NEWS';
+                document.getElementById('verdict').className = `verdict ${prediction.toLowerCase()}`;
+                document.getElementById('confidence').textContent = `DistilBERT confidence: ${data.distilbert.confidence}`;
+
+                const bar = document.getElementById('bar');
+                bar.style.width = `${confidence}%`;
+                bar.className = `bar ${prediction.toLowerCase()}`;
+
+                document.getElementById('bertVerdict').textContent = prediction;
+                document.getElementById('bertVerdict').className = `model-verdict ${prediction.toLowerCase()}`;
+
+                const baseline = data.baseline.prediction;
+                document.getElementById('baselineVerdict').textContent = baseline;
+                document.getElementById('baselineVerdict').className = `model-verdict ${baseline.toLowerCase()}`;
+
+                result.style.display = 'block';
+            } catch (err) {
+                error.textContent = 'Something went wrong. Make sure the API is running.';
+                error.style.display = 'block';
+            } finally {
+                btn.disabled = false;
+                loading.style.display = 'none';
+            }
+        }
+    </script>
+</body>
+</html>

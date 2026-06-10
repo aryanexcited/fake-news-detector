@@ -1,5 +1,7 @@
 from fastapi import FastAPI
 from pydantic import BaseModel
+from fastapi.responses import FileResponse
+from fastapi.staticfiles import StaticFiles
 from app.predictor import predict
 
 app = FastAPI(
@@ -12,7 +14,7 @@ class NewsInput(BaseModel):
 
 @app.get("/")
 def root():
-    return {"message": "Fake news detector API is running"}
+    return FileResponse("app/static/index.html")
 
 @app.post("/predict")
 def predict_news(input: NewsInput):
