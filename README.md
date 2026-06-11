@@ -1,11 +1,9 @@
 # Fake News Detector
 
-An end-to-end NLP pipeline that classifies news articles as REAL or FAKE using two models:
-- **Baseline**: TF-IDF + Logistic Regression (90.1% accuracy)
-- **Fine-tuned DistilBERT**: Transformer-based classifier (97.4% accuracy)
+An end-to-end NLP project that classifies news articles as REAL or FAKE. The public web app uses a lightweight FastAPI frontend on Render and calls a Hugging Face Space for DistilBERT inference.
 
 ## Tech Stack
-Python · FastAPI · HuggingFace Transformers · scikit-learn · Docker
+Python · FastAPI · Hugging Face Spaces · Gradio · Transformers
 
 ## Results
 
@@ -17,10 +15,11 @@ Python · FastAPI · HuggingFace Transformers · scikit-learn · Docker
 ## Project Structure
 fake-news-detector/
 ├── app/
-│   ├── main.py        # FastAPI endpoints
-│   └── predictor.py   # Model inference logic
-├── model/             # Saved model files (not tracked in git)
-├── Dockerfile
+│   ├── main.py        # FastAPI app + remote Space inference call
+│   └── predictor.py   # Local model inference module (kept for offline use)
+├── app/static/        # Frontend UI
+├── scripts/           # Helper scripts
+├── Dockerfile         # Optional container setup
 └── requirements.txt
 
 ## Run Locally
@@ -31,8 +30,7 @@ fake-news-detector/
 git clone https://github.com/aryanexcited/fake-news-detector.git
 cd fake-news-detector
 pip install -r requirements.txt
-$env:HF_MODEL_REPO="your-username/fake-news-detector-models"
-python scripts/download_models.py
+$env:SPACE_API_URL="https://ryancoder-fake-news-detector-api.hf.space"
 uvicorn app.main:app --reload
 ```
 
@@ -42,8 +40,7 @@ uvicorn app.main:app --reload
 git clone https://github.com/aryanexcited/fake-news-detector.git
 cd fake-news-detector
 pip install -r requirements.txt
-export HF_MODEL_REPO=your-username/fake-news-detector-models
-python scripts/download_models.py
+export SPACE_API_URL=https://ryancoder-fake-news-detector-api.hf.space
 uvicorn app.main:app --reload
 ```
 
@@ -52,19 +49,23 @@ Then open http://127.0.0.1:8000/ for the frontend or http://127.0.0.1:8000/docs 
 ## API Endpoints
 
 - `GET /` — Frontend page
-- `POST /predict` — Takes news text, returns prediction + confidence score
+- `POST /predict` — Takes news text, forwards it to the Hugging Face Space, and returns prediction + confidence
 
 ## Free Render Deployment
 
-This project is set up to use a free deployment flow where large model files are hosted outside GitHub and downloaded at startup.
+This project is set up to use a free deployment flow where:
+- Render hosts the lightweight FastAPI frontend
+- a Hugging Face Space hosts the DistilBERT model
+- the Render app calls the Space over HTTP for predictions
 
-### 1. Upload model assets to Hugging Face
+### 1. Hugging Face services used
 
-Create a public Hugging Face model repository, for example:
+- Model repo: `RYancoder/fake-news-detector-models`
+- Inference Space: `https://ryancoder-fake-news-detector-api.hf.space`
 
-`your-username/fake-news-detector-models`
+The model artifacts live in the Hugging Face model repository, and the Space loads them for inference.
 
-Upload these files with this exact layout:
+Model repo layout:
 
 ```text
 distilbert_model/config.json
@@ -90,24 +91,20 @@ pip install -r requirements.txt
 Start command:
 
 ```bash
-python scripts/download_models.py && uvicorn app.main:app --host 0.0.0.0 --port $PORT
+uvicorn app.main:app --host 0.0.0.0 --port $PORT
 ```
 
 ### 3. Add Render environment variables
 
-Set these environment variables in Render:
+Set this environment variable in Render:
 
 ```text
-HF_MODEL_REPO=your-username/fake-news-detector-models
-MODEL_ROOT=/tmp/models
-MODEL_DIR=/tmp/models/distilbert_model
-BASELINE_PATH=/tmp/models/baseline_model.pkl
-VECTORIZER_PATH=/tmp/models/vectorizer.pkl
+SPACE_API_URL=https://ryancoder-fake-news-detector-api.hf.space
 ```
 
 ### 4. Important note about the free plan
 
-This setup uses `/tmp/models`, which is temporary storage. On the free path, Render may download the model files again after a restart or a fresh deploy. That is normal for this zero-cost setup.
+The Hugging Face Space may sleep when idle on the free tier, so the first prediction after inactivity can be slower due to cold start. This is normal for a zero-cost demo setup.
 
 ## Dataset
 [WELFake / fake_or_real_news](https://github.com/lutzhamel/fake-news) — 6,335 news articles, balanced classes.
