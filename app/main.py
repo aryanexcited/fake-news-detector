@@ -3,9 +3,11 @@ import os
 import urllib.request
 
 from fastapi import FastAPI, HTTPException
-from pydantic import BaseModel
 from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
+from pydantic import BaseModel
+
+from app.predictor import predict_baseline
 
 app = FastAPI(
     title="Fake-news-detector",
@@ -22,6 +24,68 @@ SPACE_API_URL = os.getenv(
     "SPACE_API_URL",
     "https://ryancoder-fake-news-detector-api.hf.space",
 )
+
+
+def analyze_text_signals(text: str, prediction: str) -> dict:
+    lowered = text.lower()
+    signals = []
+
+    sensational_phrases = [
+        "shocking",
+        "breaking",
+        "you won't believe",
+        "secret",
+        "miracle",
+        "exposed",
+        "must read",
+    ]
+    vague_attribution_phrases = [
+        "experts say",
+        "people are saying",
+        "sources say",
+        "many believe",
+        "it is being reported",
+    ]
+
+    if any(phrase in lowered for phrase in sensational_phrases):
+        signals.append("Uses sensational or clickbait-style wording")
+    if any(phrase in lowered for phrase in vague_attribution_phrases):
+        signals.append("Relies on vague attribution instead of clearly named sources")
+    if text.count("!") >= 2 or text.count("?") >= 3:
+        signals.append("Uses unusually strong punctuation for emphasis")
+
+    uppercase_words = [
+        word for word in text.split()
+        if len(word) > 3 and word.isupper()
+    ]
+    if len(uppercase_words) >= 3:
+        signals.append("Contains several all-caps words that increase emotional tone")
+
+    if "http://" not in lowered and "https://" not in lowered and "according to" not in lowered:
+        signals.append("Does not clearly point to a source or supporting reference")
+
+    if not signals:
+        signals.append("Shows fewer obvious stylistic warning signs in the text alone")
+
+    if prediction == "FAKE":
+        why_flagged = (
+            "The model flagged patterns often associated with misleading content, "
+            "especially around tone, sourcing, or exaggerated framing."
+        )
+    else:
+        why_flagged = (
+            "The model found fewer high-risk language patterns, though this is still "
+            "a style-based prediction rather than a verified fact-check."
+        )
+
+    return {
+        "risk_signals": signals[:4],
+        "why_flagged": why_flagged,
+        "fact_check_note": (
+            "This is an automated prediction. Important claims should still be verified "
+            "with trusted reporting or primary sources."
+        ),
+    }
 
 
 def remote_predict(text: str):
@@ -55,12 +119,12 @@ def remote_predict(text: str):
             if not payload:
                 break
             distilbert_result = payload[0]
+            baseline_result = predict_baseline(text)
             return {
                 "text_preview": text[:100] + "..." if len(text) > 100 else text,
                 "distilbert": distilbert_result,
-                "baseline": {
-                    "prediction": "Unavailable in remote-only mode"
-                },
+                "baseline": baseline_result,
+                "analysis": analyze_text_signals(text, distilbert_result["prediction"]),
             }
 
     raise HTTPException(status_code=502, detail="Invalid response received from Space.")
