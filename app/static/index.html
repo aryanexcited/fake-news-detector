@@ -115,6 +115,43 @@
         }
         .model-verdict.fake { color: #ff4444; }
         .model-verdict.real { color: #44ff88; }
+        .analysis {
+            margin-top: 20px;
+            padding-top: 18px;
+            border-top: 1px solid #2e2e2e;
+        }
+        .analysis-title {
+            font-size: 0.8rem;
+            color: #9d9d9d;
+            text-transform: uppercase;
+            letter-spacing: 0.08em;
+            margin-bottom: 10px;
+        }
+        .analysis-copy {
+            color: #d7d7d7;
+            font-size: 0.95rem;
+            line-height: 1.5;
+            margin-bottom: 14px;
+        }
+        .signals {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 8px;
+            margin-bottom: 12px;
+        }
+        .signal-chip {
+            background: #252525;
+            border: 1px solid #353535;
+            border-radius: 999px;
+            padding: 8px 12px;
+            font-size: 0.84rem;
+            color: #eaeaea;
+        }
+        .note {
+            color: #9d9d9d;
+            font-size: 0.88rem;
+            line-height: 1.5;
+        }
         .error {
             margin-top: 16px;
             color: #ff4444;
@@ -150,6 +187,12 @@
                     <div class="model-name">TF-IDF Baseline</div>
                     <div class="model-verdict" id="baselineVerdict"></div>
                 </div>
+            </div>
+            <div class="analysis">
+                <div class="analysis-title">Why It Was Flagged</div>
+                <p class="analysis-copy" id="whyFlagged"></p>
+                <div class="signals" id="riskSignals"></div>
+                <p class="note" id="factCheckNote"></p>
             </div>
         </div>
     </div>
@@ -195,6 +238,18 @@
                 const baseline = data.baseline.prediction;
                 document.getElementById('baselineVerdict').textContent = baseline;
                 document.getElementById('baselineVerdict').className = `model-verdict ${baseline.toLowerCase()}`;
+
+                document.getElementById('whyFlagged').textContent = data.analysis.why_flagged;
+                document.getElementById('factCheckNote').textContent = data.analysis.fact_check_note;
+
+                const signalsContainer = document.getElementById('riskSignals');
+                signalsContainer.innerHTML = '';
+                data.analysis.risk_signals.forEach((signal) => {
+                    const chip = document.createElement('span');
+                    chip.className = 'signal-chip';
+                    chip.textContent = signal;
+                    signalsContainer.appendChild(chip);
+                });
 
                 result.style.display = 'block';
             } catch (err) {

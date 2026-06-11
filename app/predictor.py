@@ -1,44 +1,35 @@
 import os
 import pickle
-import torch
-from transformers import DistilBertForSequenceClassification, DistilBertTokenizer
+import urllib.request
+from pathlib import Path
 
-#path configs
-MODEL_DIR = os.getenv("MODEL_DIR", "/tmp/models/distilbert_model")
-VECTORIZER_PATH = os.getenv("VECTORIZER_PATH", "/tmp/models/vectorizer.pkl")
-BASELINE_PATH = os.getenv("BASELINE_PATH", "/tmp/models/baseline_model.pkl")
 
-#Baseline model loading
-with open(VECTORIZER_PATH, "rb") as f:
-    vectorizer = pickle.load(f)
-with open(BASELINE_PATH, "rb") as f:
-    basline_model = pickle.load(f)
+HF_MODEL_REPO = os.getenv("HF_MODEL_REPO", "RYancoder/fake-news-detector-models")
+MODEL_ROOT = Path(os.getenv("MODEL_ROOT", "/tmp/models"))
+VECTORIZER_PATH = MODEL_ROOT / "vectorizer.pkl"
+BASELINE_PATH = MODEL_ROOT / "baseline_model.pkl"
 
-#DistilBert model laoding
-tokenizer = DistilBertTokenizer.from_pretrained(MODEL_DIR)
-bert_model = DistilBertForSequenceClassification.from_pretrained(MODEL_DIR)
-bert_model.eval()
 
-def predict(text: str):
-    #prediction using distilbert model
-    inputs = tokenizer(text, return_tensors="pt", truncation=True, padding=True, max_length=512)
-    with torch.no_grad():
-        outputs = bert_model(**inputs)
-    probs = torch.softmax(outputs.logits, dim=1).squeeze().tolist()
-    bert_label = "FAKE" if probs[1] > probs[0] else "REAL"
-    bert_confidence = round(max(probs)*100, 2)
+def _download_if_missing(remote_name: str, local_path: Path) -> None:
+    if local_path.exists():
+        return
 
-    #prediction using baseline model
+    local_path.parent.mkdir(parents=True, exist_ok=True)
+    url = f"https://huggingface.co/{HF_MODEL_REPO}/resolve/main/{remote_name}"
+    urllib.request.urlretrieve(url, local_path)
+
+
+_download_if_missing("vectorizer.pkl", VECTORIZER_PATH)
+_download_if_missing("baseline_model.pkl", BASELINE_PATH)
+
+with open(VECTORIZER_PATH, "rb") as vectorizer_file:
+    vectorizer = pickle.load(vectorizer_file)
+
+with open(BASELINE_PATH, "rb") as baseline_file:
+    baseline_model = pickle.load(baseline_file)
+
+
+def predict_baseline(text: str) -> dict:
     tfidf_vec = vectorizer.transform([text])
-    baseline_label = "FAKE" if basline_model.predict(tfidf_vec)[0] == 1 else "REAL"
-
-    return{
-        "text_preview": text[:100] + "..." if len(text) > 100 else text,
-        "distilbert": {
-            "prediction": bert_label,
-            "confidence": f"{bert_confidence}%"
-        },
-        "baseline": {
-            "prediction": baseline_label
-        }
-    }
+    baseline_label = "FAKE" if baseline_model.predict(tfidf_vec)[0] == 1 else "REAL"
+    return {"prediction": baseline_label}
