@@ -1,12 +1,12 @@
+import os
 import pickle
-import numpy as np
-from transformers import DistilBertTokenizer, DistilBertForSequenceClassification
 import torch
+from transformers import DistilBertForSequenceClassification, DistilBertTokenizer
 
-#paths
-MODEL_DIR = "model/distilbert_model"
-VECTORIZER_PATH = "model/vectorizer.pkl"
-BASELINE_PATH = "model/baseline_model.pkl"
+#path configs
+MODEL_DIR = os.getenv("MODEL_DIR", "/tmp/models/distilbert_model")
+VECTORIZER_PATH = os.getenv("VECTORIZER_PATH", "/tmp/models/vectorizer.pkl")
+BASELINE_PATH = os.getenv("BASELINE_PATH", "/tmp/models/baseline_model.pkl")
 
 #Baseline model loading
 with open(VECTORIZER_PATH, "rb") as f:

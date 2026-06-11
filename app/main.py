@@ -9,6 +9,8 @@ app = FastAPI(
     version="1.0"
 )
 
+app.mount("/static", StaticFiles(directory="app/static"), name="static")
+
 class NewsInput(BaseModel):
     text: str
 
